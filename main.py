@@ -1,23 +1,69 @@
+import time
+
 import requests
 import json
+from oauth2client.service_account import ServiceAccountCredentials
+import schedule
+import threading
 
-serverToken = 'your server key here'
-deviceToken = 'device token here'
+hours1 = ['00:00', '00:00', '00:00', '00:00']
+hours2 = ['00:00', '00:00', '00:00', '00:00']
 
-headers = {
-    'Content-Type': 'application/json',
-    'Authorization': 'key=' + 'AAAAYTNDQUk:APA91bHdMGiTHYAFNyF5xl6xW6ygbgRFMtYGsdW1JaGoNhqr8dO1IkN6sJDIuRC7EaEYCmrUDCdcnz0D5dIUd_chstl6yzvlKy-H68pkO9Z9G--9dZw137QRW3iypEw-akVqPrFKSTew',
-}
+PROJECT_ID = 'moca-7c36d'
+SCOPES = ['https://www.googleapis.com/auth/firebase.messaging']
+BASE_URL = 'https://fcm.googleapis.com'
+FCM_ENDPOINT = 'v1/projects/' + PROJECT_ID + '/messages:send'
+FCM_URL = BASE_URL + '/' + FCM_ENDPOINT
 
-body = {
-    'notification': {'title': 'Sending push form python script',
-                     'body': 'Hi Ilyosbek  How  are you , are you  fine what are you doing  here?'
-                     },
-    'to':
-        "d8_9RveaQJaVdLnOMTqZ5M:APA91bE_CGDaqNUcvul7baYJWHr62-4p_C4tXUCWqq5ojYb_pyv0YIMjZHS_Gcq4hlVIEmUP98RIMQX_Kglj6jR1ggIuBSjS1_aFqxrAg84C2p4o0gRa_Lf0g9L_kW3BRSEmdh1v-UZS",
-    'priority': 'high',
-}
-response = requests.post("https://fcm.googleapis.com/fcm/send", headers=headers, data=json.dumps(body))
-print(response.status_code)
 
-print(response.json())
+def _get_access_token():
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(
+        'service-account.json', SCOPES)
+    access_token_info = credentials.get_access_token()
+
+    return access_token_info.access_token
+
+
+def _send_fcm_message(fcm_message):
+    headers = {
+        'Authorization': 'Bearer ' + _get_access_token(),
+        'Content-Type': 'application/json; UTF-8',
+    }
+
+    resp = requests.post(FCM_URL, data=json.dumps(fcm_message), headers=headers)
+
+    if resp.status_code == 200:
+        print('Message sent to Firebase for delivery, response:')
+        print(resp.text)
+    else:
+        print('Unable to send message to Firebase')
+        print(resp.text)
+
+
+def _build_common_message(topic):
+    return {
+        'message': {
+            'topic': topic,
+            'notification': {
+                'title': 'FCM Notification',
+                'body': 'Notification from FCM'
+            },
+
+        },
+
+    }
+
+
+def schdeule_notification(topic, hours):
+    schedule.every().days.at(hours[0]).do(_send_fcm_message, _build_common_message(topic))
+    schedule.every().days.at(hours[1]).do(_send_fcm_message, _build_common_message(topic))
+    schedule.every().days.at(hours[2]).do(_send_fcm_message, _build_common_message(topic))
+    schedule.every().days.at(hours[3]).do(_send_fcm_message, _build_common_message(topic))
+
+    while 1:
+        schedule.run_pending()
+        time.sleep(1)
+
+
+threading.Thread(target=schdeule_notification, args=("time1", hours1)).start()
+threading.Thread(target=schdeule_notification, args=("time2", hours2)).start()
